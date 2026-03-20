@@ -1,7 +1,7 @@
 pipeline {
   agent {
     docker {
-      image 'naveenm323/maven-java17-docker'   // your custom image (Java 17 + Docker)
+      image 'naveenm323/maven-java17-docker'
       args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
     }
   }
@@ -12,7 +12,7 @@ pipeline {
     GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
     GIT_USER_NAME = "naveenmarathi"
 
-    // 🔥 FORCE JAVA 17 (CRITICAL FIX)
+    // ✅ FORCE JAVA 17
     JAVA_HOME = '/opt/java/openjdk'
     PATH = "${JAVA_HOME}/bin:${env.PATH}"
   }
@@ -92,6 +92,11 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh '''
+            echo "===== FIXING GIT ISSUE ====="
+
+            # ✅ VERY IMPORTANT: go to repo root
+            cd ${WORKSPACE}
+
             git config user.email "naveenmarathi.xyz@gmail.com"
             git config user.name "Naveen Marathi"
 
@@ -99,6 +104,7 @@ pipeline {
             java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
 
             git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+
             git commit -m "Update image tag to ${BUILD_NUMBER}" || echo "No changes to commit"
 
             git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
