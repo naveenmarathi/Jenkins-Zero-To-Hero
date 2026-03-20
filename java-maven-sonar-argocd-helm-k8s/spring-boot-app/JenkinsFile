@@ -21,7 +21,7 @@ pipeline {
     stage('Verify Environment') {
       steps {
         sh '''
-          echo "===== VERIFY ====="
+          echo "===== VERIFY ENV ====="
           java -version
           mvn -version
           docker --version
@@ -29,19 +29,19 @@ pipeline {
       }
     }
 
-    stage('Checkout') {
+    stage('Checkout Code') {
       steps {
         checkout([
           $class: 'GitSCM',
           branches: [[name: '*/main']],
           userRemoteConfigs: [[
-             url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
+            url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
           ]]
         ])
       }
     }
 
-    stage('Build') {
+    stage('Build Application') {
       steps {
         dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
           sh 'mvn clean package'
@@ -86,31 +86,36 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh '''
-            echo "===== FINAL GIT FIX ====="
+            echo "===== UPDATE DEPLOYMENT FILE ====="
 
-            # ✅ Allow git in docker container
+            # Fix Git issues inside Docker
             git config --global --add safe.directory '*'
 
-            # ✅ Switch to main branch (fix detached HEAD)
+            # Move to correct branch
             git checkout main
 
-            # ✅ Pull latest changes (fix non-fast-forward)
+            # Sync with remote
             git pull origin main --rebase
 
-            # ✅ Set Git identity
+            # Set Git identity
             git config user.email "naveenmarathi.xyz@gmail.com"
             git config user.name "Naveen Marathi"
 
-            # ✅ Update deployment file
-            sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" \
-            java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+            FILE="java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml"
 
-            git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+            # Only update if placeholder exists (prevents empty commits)
+            if grep -q "replaceImageTag" $FILE; then
+              echo "Updating deployment file..."
 
-            git commit -m "Update image tag to ${BUILD_NUMBER}" || echo "No changes"
+              sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" $FILE
 
-            # ✅ Push changes
-            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} main
+              git add $FILE
+              git commit -m "Update image tag to ${BUILD_NUMBER}"
+
+              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} main
+            else
+              echo "No placeholder found. Skipping commit & push ✅"
+            fi
           '''
         }
       }
