@@ -88,14 +88,12 @@ pipeline {
           sh '''
             echo "===== UPDATE DEPLOYMENT FILE ====="
 
-            # Fix Git issues inside Docker
             git config --global --add safe.directory '*'
 
-            # Move to correct branch
+            # Ensure latest code (clean state)
+            git fetch origin
             git checkout main
-
-            # Sync with remote
-            git pull origin main --rebase
+            git reset --hard origin/main
 
             # Set Git identity
             git config user.email "naveenmarathi.xyz@gmail.com"
@@ -103,18 +101,18 @@ pipeline {
 
             FILE="java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml"
 
-            # Only update if placeholder exists (prevents empty commits)
-            if grep -q "replaceImageTag" $FILE; then
-              echo "Updating deployment file..."
+            echo "Updating deployment file with build number ${BUILD_NUMBER}..."
 
-              sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" $FILE
+            # Replace image tag dynamically (more reliable than placeholder)
+            sed -i "s|image: .*|image: naveenm323/ultimate-cicd:${BUILD_NUMBER}|g" $FILE
 
+            # Check if there is any change
+            if git diff --quiet; then
+              echo "No changes detected. Skipping commit ✅"
+            else
               git add $FILE
               git commit -m "Update image tag to ${BUILD_NUMBER}"
-
               git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} main
-            else
-              echo "No placeholder found. Skipping commit & push ✅"
             fi
           '''
         }
