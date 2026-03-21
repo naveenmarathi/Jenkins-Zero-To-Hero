@@ -64,18 +64,18 @@ pipeline {
         }
 
         stage('Update Deployment File') {
-            steps {
-                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-                    sh '''
-                        git config user.email "abhishek.xyz@gmail.com"
-                        git config user.name "Abhishek Veeramalla"
-                        BUILD_NUMBER=${BUILD_NUMBER}
-                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                        git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                        git push https://${GITHUB_TOKEN}@github.com/naveenmarathi/Jenkins-Zero-To-Hero HEAD:main
-                    '''
-                }
+    steps {
+        dir("${env.WORKSPACE}") {  // ensure we are in the Jenkins workspace
+            withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                sh '''
+                    git config user.email "naveenmarathi.xyz@gmail.com"
+                    git config user.name "Naveen Marathi"
+                    BUILD_NUMBER=${BUILD_NUMBER}
+                    sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                    git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                    git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+                    git push https://${GITHUB_TOKEN}@github.com/naveenmarathi/Jenkins-Zero-To-Hero HEAD:main
+                '''
             }
         }
     }
