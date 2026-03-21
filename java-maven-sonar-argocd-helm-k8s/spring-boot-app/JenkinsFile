@@ -24,6 +24,15 @@ pipeline {
       }
     }
 
+    stage('Fix Permissions (Safe Guard)') {
+      steps {
+        sh '''
+          echo "Fixing workspace permissions..."
+          chmod -R 755 . || true
+        '''
+      }
+    }
+
     stage('Checkout Code') {
       steps {
         git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
@@ -64,10 +73,13 @@ pipeline {
 
             git config --global --add safe.directory '*'
 
-            # Sync with latest repo state
+            # Always sync with latest remote state
+            git init
+            git remote remove origin || true
+            git remote add origin https://github.com/${GIT_USER_NAME}/Jenkins-Zero-To-Hero.git
+
             git fetch origin
-            git checkout main
-            git reset --hard origin/main
+            git checkout -B main origin/main
 
             # Set Git identity
             git config user.email "naveenmarathi.xyz@gmail.com"
@@ -77,12 +89,12 @@ pipeline {
 
             echo "Updating image to ${DOCKER_IMAGE}"
 
-            # Replace ONLY the image line safely
+            # Replace image safely
             sed -i "s|image: .*|image: ${DOCKER_IMAGE}|g" $FILE
 
-            # Commit only if change exists
+            # Commit only if changes exist
             if git diff --quiet; then
-              echo "No changes to commit ✅"
+              echo "No changes detected. Skipping commit ✅"
             else
               git add $FILE
               git commit -m "Update image to ${DOCKER_IMAGE}"
@@ -92,12 +104,11 @@ pipeline {
         }
       }
     }
-
   }
 
   post {
     success {
-      echo "✅ SUCCESS: Image built, pushed & deployment updated!"
+      echo "✅ SUCCESS: Build, Push & Deployment Update Completed!"
     }
     failure {
       echo "❌ FAILURE: Pipeline failed!"
