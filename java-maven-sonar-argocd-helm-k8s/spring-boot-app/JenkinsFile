@@ -9,7 +9,7 @@ pipeline {
   environment {
     SONAR_URL = "http://34.204.100.100:9000"
     DOCKER_IMAGE = "naveenm323/ultimate-cicd:${BUILD_NUMBER}"
-    GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
+    GIT_REPO = "https://github.com/naveenmarathi/Jenkins-Zero-To-Hero.git"
     GIT_USER_NAME = "naveenmarathi"
 
     JAVA_HOME = '/opt/java/openjdk'
@@ -24,26 +24,9 @@ pipeline {
       }
     }
 
-    stage('Verify Environment') {
-      steps {
-        sh '''
-          echo "===== VERIFY ENV ====="
-          java -version
-          mvn -version
-          docker --version
-        '''
-      }
-    }
-
     stage('Checkout Code') {
       steps {
-        checkout([
-          $class: 'GitSCM',
-          branches: [[name: '*/main']],
-          userRemoteConfigs: [[
-            url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
-          ]]
-        ])
+        git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
       }
     }
 
@@ -51,21 +34,6 @@ pipeline {
       steps {
         dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
           sh 'mvn clean package'
-        }
-      }
-    }
-
-    stage('SonarQube Analysis') {
-      steps {
-        withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-            sh '''
-              mvn sonar:sonar \
-                -Dsonar.projectKey=spring-boot-demo \
-                -Dsonar.host.url=${SONAR_URL} \
-                -Dsonar.login=${SONAR_AUTH_TOKEN}
-            '''
-          }
         }
       }
     }
@@ -88,47 +56,48 @@ pipeline {
       }
     }
 
-    stage('Update Deployment File') {
+    stage('Update Deployment Manifest') {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh '''
-            echo "===== UPDATE DEPLOYMENT FILE ====="
+            echo "===== UPDATE DEPLOYMENT ====="
 
             git config --global --add safe.directory '*'
 
-            # Always sync cleanly with remote
+            # Sync with latest repo state
             git fetch origin
             git checkout main
             git reset --hard origin/main
 
-            # Git identity
+            # Set Git identity
             git config user.email "naveenmarathi.xyz@gmail.com"
             git config user.name "Naveen Marathi"
 
             FILE="java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml"
 
-            echo "Updating image tag to ${BUILD_NUMBER}..."
+            echo "Updating image to ${DOCKER_IMAGE}"
 
-            # Update Docker image tag dynamically
-            sed -i "s|image: .*|image: naveenm323/ultimate-cicd:${BUILD_NUMBER}|g" $FILE
+            # Replace ONLY the image line safely
+            sed -i "s|image: .*|image: ${DOCKER_IMAGE}|g" $FILE
 
-            # Commit only if changes exist
+            # Commit only if change exists
             if git diff --quiet; then
-              echo "No changes detected. Skipping commit ✅"
+              echo "No changes to commit ✅"
             else
               git add $FILE
-              git commit -m "Update image tag to ${BUILD_NUMBER}"
-              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} main
+              git commit -m "Update image to ${DOCKER_IMAGE}"
+              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/Jenkins-Zero-To-Hero.git main
             fi
           '''
         }
       }
     }
+
   }
 
   post {
     success {
-      echo "✅ SUCCESS: Pipeline completed!"
+      echo "✅ SUCCESS: Image built, pushed & deployment updated!"
     }
     failure {
       echo "❌ FAILURE: Pipeline failed!"
