@@ -2,7 +2,7 @@ pipeline {
   agent {
     docker {
       image 'naveenm323/maven-java17-docker'
-      args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+      args '-u 1000:1000 -v /var/run/docker.sock:/var/run/docker.sock'
     }
   }
 
@@ -17,6 +17,12 @@ pipeline {
   }
 
   stages {
+
+    stage('Clean Workspace') {
+      steps {
+        deleteDir()
+      }
+    }
 
     stage('Verify Environment') {
       steps {
@@ -90,23 +96,23 @@ pipeline {
 
             git config --global --add safe.directory '*'
 
-            # Ensure latest code (clean state)
+            # Always sync cleanly with remote
             git fetch origin
             git checkout main
             git reset --hard origin/main
 
-            # Set Git identity
+            # Git identity
             git config user.email "naveenmarathi.xyz@gmail.com"
             git config user.name "Naveen Marathi"
 
             FILE="java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml"
 
-            echo "Updating deployment file with build number ${BUILD_NUMBER}..."
+            echo "Updating image tag to ${BUILD_NUMBER}..."
 
-            # Replace image tag dynamically (more reliable than placeholder)
+            # Update Docker image tag dynamically
             sed -i "s|image: .*|image: naveenm323/ultimate-cicd:${BUILD_NUMBER}|g" $FILE
 
-            # Check if there is any change
+            # Commit only if changes exist
             if git diff --quiet; then
               echo "No changes detected. Skipping commit ✅"
             else
