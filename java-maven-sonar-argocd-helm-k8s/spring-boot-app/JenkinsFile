@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'maven:3.9.3-eclipse-temurin-17'  // Maven + Java 17
+            image 'maven:3.9.3-eclipse-temurin-17'  // Maven + Java 17 (Debian-based)
             args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
@@ -43,8 +43,9 @@ pipeline {
         stage('Install Docker CLI') {
             steps {
                 sh '''
-                    apk add --no-cache docker-cli
-                    docker version
+                    apt-get update
+                    apt-get install -y docker.io
+                    docker --version
                 '''
             }
         }
