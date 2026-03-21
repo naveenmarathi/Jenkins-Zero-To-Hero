@@ -7,10 +7,9 @@ pipeline {
   }
 
   environment {
-    SONAR_URL = "http://34.204.100.100:9000"
     DOCKER_IMAGE = "naveenm323/ultimate-cicd:${BUILD_NUMBER}"
-    GIT_REPO = "https://github.com/naveenmarathi/Jenkins-Zero-To-Hero.git"
     GIT_USER_NAME = "naveenmarathi"
+    REPO_NAME = "Jenkins-Zero-To-Hero"
 
     JAVA_HOME = '/opt/java/openjdk'
     PATH = "${JAVA_HOME}/bin:${env.PATH}"
@@ -18,22 +17,16 @@ pipeline {
 
   stages {
 
-    stage('Clean Workspace') {
-      steps {
-        deleteDir()
-      }
-    }
-
-    stage('Fix Permissions (Safe Guard)') {
+    stage('Prepare Workspace') {
       steps {
         sh '''
-          echo "Fixing workspace permissions..."
-          chmod -R 755 . || true
+          echo "Cleaning workspace safely..."
+          rm -rf * || true
         '''
       }
     }
 
-    stage('Checkout Code') {
+    stage('Checkout Source Code') {
       steps {
         git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
       }
@@ -69,36 +62,35 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh '''
-            echo "===== UPDATE DEPLOYMENT ====="
+            echo "===== Updating Deployment Manifest ====="
 
             git config --global --add safe.directory '*'
 
-            # Always sync with latest remote state
-            git init
-            git remote remove origin || true
-            git remote add origin https://github.com/${GIT_USER_NAME}/Jenkins-Zero-To-Hero.git
+            # Always use fresh clone to avoid permission issues
+            rm -rf temp-repo || true
+            git clone https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${REPO_NAME}.git temp-repo
 
-            git fetch origin
-            git checkout -B main origin/main
-
-            # Set Git identity
-            git config user.email "naveenmarathi.xyz@gmail.com"
-            git config user.name "Naveen Marathi"
+            cd temp-repo
+            git checkout main
 
             FILE="java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml"
 
             echo "Updating image to ${DOCKER_IMAGE}"
 
-            # Replace image safely
+            # Update image tag
             sed -i "s|image: .*|image: ${DOCKER_IMAGE}|g" $FILE
+
+            # Git config
+            git config user.email "naveenmarathi.xyz@gmail.com"
+            git config user.name "Naveen Marathi"
 
             # Commit only if changes exist
             if git diff --quiet; then
-              echo "No changes detected. Skipping commit ✅"
+              echo "No changes detected. Skipping commit."
             else
-              git add $FILE
+              git add .
               git commit -m "Update image to ${DOCKER_IMAGE}"
-              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/Jenkins-Zero-To-Hero.git main
+              git push origin main
             fi
           '''
         }
